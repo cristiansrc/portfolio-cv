@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------
+  # SERVICIO 1: SPRING BOOT (ms-resume)
+  # ----------------------------------------------------------------
+  ms-resume:
+    container_name: cris_ms_resume
+    build: ./ms-resume            # <--- ¡ACTUALIZADO! Apunta a tu carpeta Java
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"     # Solo escucha en local, Nginx le habla aquí
+    env_file:
+      - .env
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      # Ahora la URL interna apunta al nombre del otro servicio abajo
+      - CV_SERVICE_URL=http://ms-render-cv:8000
+      # Límite de RAM para proteger tu server de 2GB
+      - JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
+    networks:
+      - portfolio_net
+    depends_on:
+      - ms-render-cv
+
+  # ----------------------------------------------------------------
+  # SERVICIO 2: FASTAPI + RENDERCV (ms-render-cv)
+  # ----------------------------------------------------------------
+  ms-render-cv:
+    container_name: cris_ms_render_cv
+    build: ./ms-render-cv         # <--- ¡ACTUALIZADO! Apunta a tu carpeta Python
+    restart: always
+    expose:
+      - "8000"                    # Puerto interno (invisible desde internet)
+    environment:
+      - WORKERS=1
+    networks:
+      - portfolio_net
+
+# ----------------------------------------------------------------
+# RED PRIVADA
+# ----------------------------------------------------------------
+networks:
+  portfolio_net:
+    driver: bridge
