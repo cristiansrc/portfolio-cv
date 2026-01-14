@@ -7,33 +7,23 @@ services:
     build: ./ms-resume
     restart: always
     ports:
-      # Puerto expuesto al host - accesible desde fuera del contenedor
-      - "8080:8080"
-    # Lee TODAS las variables de entorno desde el archivo .env del proyecto
+      # Puerto expuesto solo al host local (127.0.0.1) para Nginx
+      - "127.0.0.1:8080:8080"
     env_file:
       - ./ms-resume/.env
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      # URL del servicio Python usando el nombre del servicio Docker
-      # Spring Boot reconoce automáticamente CONFIG_RENDERCV_URL como config.rendercv.url
+      # ms-resume se comunica con ms-render-cv a través de la red interna de Docker
       - CONFIG_RENDERCV_URL=http://ms-render-cv:8000
-      # Límite de RAM para proteger tu server de 2GB
-      - JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
-      # Ruta de la base de datos SQLite (configurable desde .env o variable de entorno)
-      # Por defecto: /data/ms-resume.db (dentro del contenedor, mapeado al host)
+      - JAVA_TOOL_OPTIONS=-Xms512m -Xmx2048m
       - DB_PATH=${DB_PATH:-/data/ms-resume.db}
-      # Todas las demás variables (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AWS_ACCESS_KEY, etc.)
-      # se cargan automáticamente desde ./ms-resume/.env
     volumes:
-      # Volumen para persistir la base de datos SQLite en el servidor host
-      # La ruta del host es configurable mediante DB_DATA_PATH (por defecto: ./data)
       - ${DB_DATA_PATH:-./data}:/data
     networks:
       - portfolio_net
     depends_on:
       - ms-render-cv
     healthcheck:
-      # Verifica que el proceso Java esté corriendo
       test: ["CMD-SHELL", "ps aux | grep -q '[j]ava.*app.jar' || exit 1"]
       interval: 30s
       timeout: 10s
@@ -41,22 +31,21 @@ services:
       start_period: 60s
 
   # ----------------------------------------------------------------
-  # SERVICIO 2: FASTAPI + RENDERCV (ms-render-cv)
+  # SERVICIO 2: FASTAPI + RENDERCV (ms-render-cv) - SOLO INTERNO
   # ----------------------------------------------------------------
   ms-render-cv:
     container_name: cris_ms_render_cv
     build: ./ms-render-cv
     restart: always
-    # expose: solo expone el puerto internamente en la red Docker
-    # NO es accesible desde fuera del contenedor
+    # NO HAY 'ports' - Este servicio no es accesible desde el exterior
     expose:
+      # Solo es accesible desde la red interna de Docker en el puerto 8000
       - "8000"
     environment:
       - WORKERS=1
     networks:
       - portfolio_net
     healthcheck:
-      # Verifica que el proceso uvicorn esté corriendo
       test: ["CMD-SHELL", "ps aux | grep -q '[u]vicorn' || exit 1"]
       interval: 30s
       timeout: 10s
